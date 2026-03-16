@@ -2,8 +2,6 @@ import hardhatToolboxMochaEthersPlugin from '@nomicfoundation/hardhat-toolbox-mo
 import { defineConfig } from 'hardhat/config'
 import 'dotenv/config'
 
-console.log(process.env)
-
 export default defineConfig({
 	plugins: [hardhatToolboxMochaEthersPlugin],
 	paths: {

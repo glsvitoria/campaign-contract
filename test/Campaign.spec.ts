@@ -51,7 +51,9 @@ describe('Campaign Contract', function () {
 	})
 
 	it('allows people to contribute and marks them as approvers', async () => {
-		await campaign.connect(accounts[1]).contribute({ value: ethers.parseEther('1') })
+		await campaign
+			.connect(accounts[1])
+			.contribute({ value: ethers.parseEther('1') })
 
 		const isApprover = await campaign.approvers(await accounts[1].getAddress())
 
@@ -60,13 +62,19 @@ describe('Campaign Contract', function () {
 
 	it('requires a minimum contribution', async () => {
 		await expect(
-			campaign.connect(accounts[1]).contribute({ value: ethers.parseEther('0.1') }),
+			campaign
+				.connect(accounts[1])
+				.contribute({ value: ethers.parseEther('0.1') }),
 		).to.be.revertedWith('Minimum contribution not met')
 	})
 
 	it("don't increase approvers count if the same address contributes multiple times", async () => {
-		await campaign.connect(accounts[1]).contribute({ value: ethers.parseEther('1') })
-		await campaign.connect(accounts[1]).contribute({ value: ethers.parseEther('1') })
+		await campaign
+			.connect(accounts[1])
+			.contribute({ value: ethers.parseEther('1') })
+		await campaign
+			.connect(accounts[1])
+			.contribute({ value: ethers.parseEther('1') })
 
 		const approversCount = await campaign.approversCount()
 
@@ -89,6 +97,96 @@ describe('Campaign Contract', function () {
 		expect(request.recipient).to.equal(await accounts[2].getAddress())
 		expect(request.complete).to.be.false
 		expect(request.approvalCount).to.equal(0)
+	})
+
+	it('allows a manager to make a payment request only if they are the manager', async () => {
+		await expect(
+			campaign
+				.connect(accounts[1])
+				.createRequest(
+					'Buy materials',
+					ethers.parseEther('1'),
+					await accounts[2].getAddress(),
+				),
+		).to.be.revertedWith('Only manager can call this')
+	})
+
+	it('allows contributors to approve requests', async () => {
+		await campaign
+			.connect(accounts[1])
+			.contribute({ value: ethers.parseEther('1') })
+
+		await campaign
+			.connect(accounts[0])
+			.createRequest(
+				'Buy materials',
+				ethers.parseEther('1'),
+				await accounts[2].getAddress(),
+			)
+
+		await campaign.connect(accounts[1]).approveRequest(0)
+
+		const request = await campaign.requests(0)
+
+		expect(request.approvalCount).to.equal(1)
+	})
+
+	it('allow only one approval per contributor', async () => {
+		await campaign
+			.connect(accounts[1])
+			.contribute({ value: ethers.parseEther('1') })
+
+		await campaign
+			.connect(accounts[0])
+			.createRequest(
+				'Buy materials',
+				ethers.parseEther('1'),
+				await accounts[2].getAddress(),
+			)
+
+		await campaign.connect(accounts[1]).approveRequest(0)
+
+		await expect(
+			campaign.connect(accounts[1]).approveRequest(0),
+		).to.be.revertedWith('Already approved')
+	})
+
+	it('allow only contributors to approve requests', async () => {
+		await campaign
+			.connect(accounts[1])
+			.contribute({ value: ethers.parseEther('1') })
+
+		await campaign
+			.connect(accounts[0])
+			.createRequest(
+				'Buy materials',
+				ethers.parseEther('1'),
+				await accounts[2].getAddress(),
+			)
+
+		await expect(
+			campaign.connect(accounts[2]).approveRequest(0),
+		).to.be.revertedWith('Only contributors can approve')
+	})
+
+	it('allow only manager to finalize requests', async () => {
+		await campaign
+			.connect(accounts[1])
+			.contribute({ value: ethers.parseEther('1') })
+
+		await campaign
+			.connect(accounts[0])
+			.createRequest(
+				'Buy materials',
+				ethers.parseEther('0.5'),
+				await accounts[2].getAddress(),
+			)
+
+		await campaign.connect(accounts[1]).approveRequest(0)
+
+		await expect(
+			campaign.connect(accounts[1]).finalizeRequest(0),
+		).to.be.revertedWith('Only manager can call this')
 	})
 
 	it('processes requests', async () => {
